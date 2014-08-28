@@ -9,16 +9,15 @@
 #define DATA_PIN 13
 int MAX_PIXEL = 10;
 
-int maxBrightness = 255;
+int currentPattern = 1;    // Current pattern we are displaying
+int currentPixel = 1;      // Current pixel for identification mode
+int controllerType = 1;    // Controller type (1:WS2822S 2:WS2821)
 
-int currentPixel = 1;
-int currentPattern = 1;
-
-#define COMMAND_IDENTIFY        'i'
-#define COMMAND_PROGRAM         'p'
-#define COMMAND_DISPLAY_PATTERN 'd'
-#define COMMAND_MAX_PIXELS      'm'
-
+#define COMMAND_IDENTIFY        'i'    // Idenify one pixel, flashing R-G-B on it
+#define COMMAND_PROGRAM         'p'    // Program a channel
+#define COMMAND_DISPLAY_PATTERN 'd'    // 1:Identify 2:Rainbow Swirl 3: Flash Mode
+#define COMMAND_MAX_PIXELS      'm'    // Number of pixels to send data to
+#define COMMAND_CONTROLLER_TYPE 't'    // 1:WS2822S 2:WS2821
 
 void setup() {
   pinMode(DATA_PIN, OUTPUT);  
@@ -54,13 +53,23 @@ uint8_t flipEndianness(uint8_t input) {
 }
 
 void programAddress(int address) {
-  int channel = (address-1)*3+1;
-  
   // Build the output pattern to program this address
   uint8_t pattern[3];
-  pattern[0] = flipEndianness(channel%255);
-  pattern[1] = flipEndianness(240 - (channel/256)*15);
-  pattern[2] = flipEndianness(0xD2);
+  
+  if (controllerType ==  1) {
+    // WS2822S (from datasheet)
+    int channel = (address-1)*3+1;
+    pattern[0] = flipEndianness(channel%256);
+    pattern[1] = flipEndianness(240 - (channel/256)*15);
+    pattern[2] = flipEndianness(0xD2);
+  }
+  else {
+    // WS2821 (determined experimentally)
+    int channel = (address)*3;
+    pattern[0] = flipEndianness(channel%256);
+    pattern[1] = flipEndianness(240 - (channel/256)*15);
+    pattern[2] = flipEndianness(0xAE);    
+  }
   
   Serial.print(pattern[0], HEX);
   Serial.print(" ");
@@ -98,6 +107,7 @@ void programAddress(int address) {
 
 void identify() {
   static int brightness;
+  static int maxBrightness = 255;
   
   for(int pixel = 1; pixel <= MAX_PIXEL; pixel++) {    
     if(pixel == currentPixel) {
@@ -206,6 +216,11 @@ void loop() {
       Serial.println(parameter);
       MAX_PIXEL = parameter;
     }
+    else if(command == COMMAND_CONTROLLER_TYPE) {
+      Serial.print("Setting controller type to: ");
+      Serial.println(parameter);
+      controllerType = parameter;
+    } 
   }
 
   if(currentPattern == 1) {
