@@ -1,23 +1,28 @@
 // WS282x programmer
 // Takes some commands from the serial and allows you to program WS282x LED modules
 //
+// Should work with any 168, 328, or 32U4 based Arduino.
+//
 // Copyright 2014 Matt Mets
 
 #include "DmxSimpleMod.h"
 
-#define ADDRESS_PIN 7
-#define DATA_PIN 13
-int MAX_PIXEL = 10;
+#define DATA_PIN    13      // Pin connected to the data output
+#define ADDRESS_PIN  7      // Pin connected to the address programmer output
 
-int currentPattern = 1;    // Current pattern we are displaying
-int currentPixel = 1;      // Current pixel for identification mode
-int controllerType = 1;    // Controller type (1:WS2822S 2:WS2821)
 
 #define COMMAND_IDENTIFY        'i'    // Idenify one pixel, flashing R-G-B on it
 #define COMMAND_PROGRAM         'p'    // Program a channel
 #define COMMAND_DISPLAY_PATTERN 'd'    // 1:Identify 2:Rainbow Swirl 3: Flash Mode
 #define COMMAND_MAX_PIXELS      'm'    // Number of pixels to send data to
 #define COMMAND_CONTROLLER_TYPE 't'    // 1:WS2822S 2:WS2821
+
+
+int maxPixel = 10;          // Maximum pixel to display
+int currentPattern = 1;     // Current pattern we are displaying
+int currentPixel = 1;       // Current pixel for identification mode
+int controllerType = 1;     // Controller type (1:WS2822S 2:WS2821)
+
 
 void setup() {
   pinMode(DATA_PIN, OUTPUT);  
@@ -27,7 +32,7 @@ void setup() {
   digitalWrite(ADDRESS_PIN, HIGH);
 
   DmxSimple.usePin(DATA_PIN);
-  DmxSimple.maxChannel(MAX_PIXEL*3);
+  DmxSimple.maxChannel(maxPixel*3);
   dmxBegin();
   
   Serial.begin(19200);
@@ -70,20 +75,12 @@ void programAddress(int address) {
     pattern[1] = flipEndianness(240 - (channel/256)*15);
     pattern[2] = flipEndianness(0xAE);    
   }
-  
-  Serial.print(pattern[0], HEX);
-  Serial.print(" ");
-  Serial.print(pattern[1], HEX);
-  Serial.print(" ");
-  Serial.print(pattern[2], HEX);
-  Serial.print("\n");
-
 
   dmxEnd();                        // Turn off the DMX engine
-  delay(200);                      // Wait for the engine to actually stop
+  delay(50);                       // Wait for the engine to actually stop
   digitalWrite(ADDRESS_PIN, HIGH); // Set the address output pin high if it wasn't already
   digitalWrite(DATA_PIN, LOW);     // Force the data pin low
-  delay(200);                      // Let this sit for a bit to signal the chip we are starting
+  delay(50);                       // Let this sit for a bit to signal the chip we are starting
   
   DmxSimple.usePin(ADDRESS_PIN);   // Use the address output pin to generate the DMX signal
   DmxSimple.maxChannel(3);
@@ -93,15 +90,15 @@ void programAddress(int address) {
 
   digitalWrite(ADDRESS_PIN, LOW);   // Set the address pin low to begin transmission
   delay(1000);                      // Delay 1s to signal address transmission begin
-  dmxBegin();
+  dmxBegin();                       // Begin transmission. Only the first one actually counts.
 
-  delay(100);                      // Wait a while for the the signal to be sent
+  delay(20);                       // Wait a while for the the signal to be sent
   dmxEnd();
   digitalWrite(ADDRESS_PIN, HIGH); // Set the address output pin high if it wasn't already
 
   // Reset the output, and set the output to our new pixel address.
   DmxSimple.usePin(DATA_PIN);
-  DmxSimple.maxChannel(MAX_PIXEL*3);
+  DmxSimple.maxChannel(maxPixel*3);
   dmxBegin();
 }
 
@@ -109,7 +106,7 @@ void identify() {
   static int brightness;
   static int maxBrightness = 255;
   
-  for(int pixel = 1; pixel <= MAX_PIXEL; pixel++) {    
+  for(int pixel = 1; pixel <= maxPixel; pixel++) {    
     if(pixel == currentPixel) {
       int r = 0;
       int g = 0;
@@ -143,7 +140,7 @@ void color_loop() {
 
   static int pixelIndex;
   
-  for (uint16_t i = 0; i < MAX_PIXEL*10; i+=10) {
+  for (uint16_t i = 0; i < maxPixel*10; i+=10) {
     writePixel(i/10+1,
       64*(1+sin(i/2.0 + j/4.0       )),
       64*(1+sin(i/1.0 + f/9.0  + 2.1)),
@@ -161,7 +158,7 @@ void countUp() {
   static int counts = 0;
   static int pixel = 0;
   
-  for (uint16_t i = 0; i < MAX_PIXEL; i+=1) {
+  for (uint16_t i = 0; i < maxPixel; i+=1) {
     if(pixel == i) {
       writePixel(i+1, 255,255,255);
     }
@@ -173,7 +170,7 @@ void countUp() {
   counts++;
   if(counts>1000) {
     counts = 0;
-    pixel = (pixel+1)%MAX_PIXEL;
+    pixel = (pixel+1)%maxPixel;
   }
 }
 
@@ -188,7 +185,7 @@ void loop() {
 
     
     if(command == COMMAND_IDENTIFY) {
-      if(parameter < 1 || parameter > MAX_PIXEL) {
+      if(parameter < 1 || parameter > maxPixel) {
         parameter = 1;
       }
       
@@ -198,7 +195,7 @@ void loop() {
       currentPattern = 1;
     }
     else if(command == COMMAND_PROGRAM) {
-      if(parameter < 1 || parameter > MAX_PIXEL) {
+      if(parameter < 1 || parameter > maxPixel) {
         parameter = 1;
       }
       
@@ -214,7 +211,7 @@ void loop() {
     else if(command == COMMAND_MAX_PIXELS) {
       Serial.print("Setting max pixel to: ");
       Serial.println(parameter);
-      MAX_PIXEL = parameter;
+      maxPixel = parameter;
     }
     else if(command == COMMAND_CONTROLLER_TYPE) {
       Serial.print("Setting controller type to: ");
