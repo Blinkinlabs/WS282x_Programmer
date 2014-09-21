@@ -13,16 +13,18 @@
 
 #include "DmxSimpleMod.h"
 
-/** dmxBuffer contains a software copy of all the DMX channels.
-  */
-volatile uint8_t dmxBuffer[DMX_SIZE];
-static uint16_t dmxMax = 16; /* Default to sending the first 16 channels */
-static uint8_t dmxStarted = 0;
-static uint16_t dmxState = 1;
+#define DMX_MODE_DISABLED    0    // Disable DMX output
+#define DMX_MODE_CONTINUOUS  1    // Send the DMX data continuosly
+#define DMX_MODE_SINGLE_SHOT 2    // Send the DMX frame one, then stop
 
-static volatile uint8_t *dmxPort;
-static uint8_t dmxBit = 0;
-static uint8_t dmxPin = 3; // Defaults to output on pin 3 to support Tinker.it! DMX shield
+volatile uint8_t dmxBuffer[DMX_SIZE];
+uint16_t dmxMax = 16;                 // Number of DMX channels to transmit
+uint8_t  dmxMode = DMX_MODE_DISABLED; // Transmission mode
+uint16_t dmxState = 0;                // Transmission state: 0:start byte, >0: sending channel
+
+uint8_t dmxPin = 3;                   // Arduino pin to output DMX to
+volatile uint8_t *dmxPort;            //
+uint8_t dmxBit = 0;                   // 
 
 void dmxBegin();
 void dmxEnd();
@@ -59,11 +61,10 @@ void dmxMaxChannel(int);
 #endif
 
 
-/** Initialise the DMX engine
- */
-void dmxBegin()
+// Initialise the DMX engine
+inline void dmxBegin()
 {
-  dmxStarted = 1;
+  dmxMode = DMX_MODE_CONTINUOUS;
   dmxState = 0;
 
   // Set up port pointers for interrupt routine
@@ -84,22 +85,19 @@ void dmxBegin()
   TIMERn_INTERRUPT_ENABLE();
 }
 
-/** Stop the DMX engine
- * Turns off the DMX interrupt routine
- */
-void dmxEnd()
+// Stop the DMX engine
+// Turns off the DMX interrupt routine
+inline void dmxEnd()
 {
   TIMERn_INTERRUPT_DISABLE();
-  dmxStarted = 0;
-//  dmxMax = 0;
+  dmxMode = DMX_MODE_DISABLED;
 }
 
-/** Transmit a complete DMX byte
- * We have no serial port for DMX, so everything is timed using an exact
- * number of instruction cycles.
- *
- * Really suggest you don't touch this function.
- */
+// Transmit a complete DMX byte
+// We have no serial port for DMX, so everything is timed using an exact
+// number of instruction cycles.
+//
+// Really suggest you don't touch this function.
 void dmxSendByte(volatile uint8_t value)
 {
   uint8_t bitCount, delCount;
@@ -139,18 +137,17 @@ void dmxSendByte(volatile uint8_t value)
   );
 }
 
-/** DmxSimple interrupt routine
- * Transmit a chunk of DMX signal every timer overflow event.
- * 
- * The full DMX transmission takes too long, but some aspects of DMX timing
- * are flexible. This routine chunks the DMX signal, only sending as much as
- * it's time budget will allow.
- *
- * This interrupt routine runs with interrupts enabled most of the time.
- * With extremely heavy interrupt loads, it could conceivably interrupt its
- * own routine, so the TIMERn interrupt is disabled for the duration of
- * the service routine.
- */
+// DmxSimple interrupt routine
+// Transmit a chunk of DMX signal every timer overflow event.
+// 
+// The full DMX transmission takes too long, but some aspects of DMX timing
+// are flexible. This routine chunks the DMX signal, only sending as much as
+// it's time budget will allow.
+//
+// This interrupt routine runs with interrupts enabled most of the time.
+// With extremely heavy interrupt loads, it could conceivably interrupt its
+// own routine, so the TIMERn interrupt is disabled for the duration of
+// the service routine.
 ISR(TIMERn_OVF_vect,ISR_NOBLOCK) {
 
   // Prevent this interrupt running recursively
@@ -180,6 +177,12 @@ ISR(TIMERn_OVF_vect,ISR_NOBLOCK) {
     dmxState++;
     if (dmxState > dmxMax) {
       dmxState = 0; // Send next frame
+      
+      // If we aren't in continuous transmission mode, stop.
+      if(dmxMode != DMX_MODE_CONTINUOUS) {
+        dmxEnd();
+      }
+      
       break;
     }
   }
@@ -189,7 +192,6 @@ ISR(TIMERn_OVF_vect,ISR_NOBLOCK) {
 }
 
 void dmxWrite(int channel, uint8_t value) {
-//  if (!dmxStarted) dmxBegin();
   if ((channel > 0) && (channel <= DMX_SIZE)) {
     if (value<0) value=0;
     if (value>255) value=255;
@@ -199,44 +201,34 @@ void dmxWrite(int channel, uint8_t value) {
 }
 
 void dmxMaxChannel(int channel) {
-  if (channel <=0) {
-    // End DMX transmission
-    dmxEnd();
-//    dmxMax = 0;
-  } else {
-    dmxMax = min(channel, DMX_SIZE);
-//    if (!dmxStarted) dmxBegin();
-  }
+  dmxMax = min(channel, DMX_SIZE);
 }
 
 
-/* C++ wrapper */
-
-
-/** Set output pin
- * @param pin Output digital pin to use
- */
 void DmxSimpleClass::usePin(uint8_t pin) {
   dmxPin = pin;
-//  if (dmxStarted && (pin != dmxPin)) {
-//    dmxEnd();
-//    dmxBegin();
-//  }
+  // TODO: configure pin output mode here?
 }
 
-/** Set DMX maximum channel
- * @param channel The highest DMX channel to use
- */
+
 void DmxSimpleClass::maxChannel(int channel) {
   dmxMaxChannel(channel);
 }
 
-/** Write to a DMX channel
- * @param address DMX address in the range 1 - 512
- */
 void DmxSimpleClass::write(int address, uint8_t value)
 {
-	dmxWrite(address, value);
+  dmxWrite(address, value);
 }
+
+void DmxSimpleClass::begin()
+{
+  dmxBegin();
+}
+
+void DmxSimpleClass::end()
+{
+  dmxEnd();
+}
+
 DmxSimpleClass DmxSimple;
 

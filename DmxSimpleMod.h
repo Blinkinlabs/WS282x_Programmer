@@ -18,15 +18,23 @@
 #endif
 
 class DmxSimpleClass                                                                    
-{                                                                                       
+{                                                            
   public:
-    void maxChannel(int);                                                               
-    void write(int, uint8_t);                                                           
-    void usePin(uint8_t);
+    // Set output pin
+    // @param pin (input) Output digital pin to use
+    void usePin(uint8_t pin);
+  
+    // Set DMX maximum channel
+    // @param channel (input) The highest DMX channel to use (max DMX_SIZE)
+    void maxChannel(int channel);
+    
+    // Write to a DMX channel
+    // @param address (input) DMX address to set (1 - DMX_SIZE)
+    // @param value (input) Value to write to the DMX address
+    void write(int address, uint8_t value);
+    
+    void begin();
+    void end();
 };
 extern DmxSimpleClass DmxSimple;
-
-extern void dmxEnd();
-extern void dmxBegin();
-  
 #endif
