@@ -18,8 +18,8 @@
 #define COMMAND_CONTROLLER_TYPE 't'    // 1:WS2821S 2:WS2822S
 
 
-int maxPixel       = 100;    // Maximum pixel to display
-int currentPattern = 3;     // Current pattern we are displaying
+int maxPixel       = 14;    // Maximum pixel to display
+int currentPattern = 2;     // Current pattern we are displaying
 int currentPixel   = 1;     // Current pixel for identification mode
 int controllerType = 1;     // Controller type (1:WS2822S 2:WS2821)
 
@@ -179,13 +179,17 @@ void marty_loop() {
 }
 
 void countUp() {
-  #define MAX_COUNT 200
+  #define MAX_COUNT 400
   static int counts = 0;
   static int pixel = 0;
   
   for (uint16_t i = 0; i < maxPixel; i+=1) {
     if(pixel == i) {
-      writePixel(i+1, 255,255,255);
+      writePixel(i+1,
+        255,
+        255,
+        255
+      );
     }
     else {
       writePixel(i+1, 0,0,0);
@@ -199,6 +203,51 @@ void countUp() {
   }
 }
 
+void pictureFrame() {
+  #define MAX_COUNT 10
+  static int counts = 0;
+  static int pixel = 0;
+  
+  static uint8_t i = 0;
+  static int j = 0;
+  static int f = 0;
+  static int k = 0;
+  static int count;
+
+  static int pixelIndex;
+  
+  for (uint16_t i = 0; i < 10; i+=1) {
+    if(pixel == i) {
+      writePixel(i+1,
+        0,
+        0,
+        0
+      );
+    }
+    else {
+//      writePixel(i+1, 90,0,255);
+
+    writePixel(i+1,
+      128*(1+sin(i/9.0 + j/10.3       )),
+      128*(1+sin(i/3.0 + f/20.9)),
+      128*(1+sin(i/6.0 + k/50.6))
+    );
+    
+    }
+  }
+  
+  writePixel(11,255,0,0);
+  
+  counts++;
+  if(counts>MAX_COUNT) {
+    counts = 0;
+    pixel = (pixel+1)%maxPixel;
+  }
+  
+  j = j + 1;
+  f = f + 1;
+  k = k + 2;
+}
 
 void loop() {
   
@@ -251,6 +300,9 @@ void loop() {
   }
   else if(currentPattern == 3) {
     marty_loop();
+  }
+  else if(currentPattern == 4) {
+    pictureFrame();
   }
   else {
     countUp();
